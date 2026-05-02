@@ -10,27 +10,27 @@ const meta = struct {
         const num_fields = countFields: {
             var count: comptime_int = 0;
             for (Enums) |Subset| {
-                for (std.meta.fields(Subset)) |_| count += 1;
+                count += @typeInfo(Subset).@"enum".fields.len;
             }
             break :countFields count;
         };
-        comptime var fields: [num_fields]std.builtin.Type.EnumField = .{undefined} ** num_fields;
+        comptime var names: [num_fields][]const u8 = undefined;
+        comptime var values: [num_fields]tag_type = undefined;
         comptime var i = 0;
-        for (Enums) |Subset| {
-            const subset_info = @typeInfo(Subset).@"enum";
-            assert(subset_info.tag_type == tag_type);
-            for (subset_info.fields) |field| {
-                assert(i < fields.len);
-                fields[i] = field;
+        inline for (Enums) |Subset| {
+            const info = @typeInfo(Subset).@"enum";
+            inline for (info.fields) |field| {
+                names[i] = field.name;
+                values[i] = field.value;
                 i += 1;
             }
         }
-        return @Type(.{ .@"enum" = .{
-            .tag_type = tag_type,
-            .fields = &fields,
-            .decls = &.{},
-            .is_exhaustive = true,
-        } });
+        return @Enum(
+            tag_type,
+            .exhaustive,
+            &names,
+            &values,
+        );
     }
 };
 
@@ -3835,7 +3835,7 @@ pub fn Wrap(comptime bindings: anytype) type {
 
         pub fn getError() Error {
             const res = bindings.getError();
-            return std.meta.intToEnum(Error, res) catch onInvalid: {
+            return std.enums.fromInt(Error, res) orelse onInvalid: {
                 log.warn("getError returned unexpected value {}", .{res});
                 break :onInvalid .no_error;
             };
@@ -6928,7 +6928,7 @@ pub fn Wrap(comptime bindings: anytype) type {
         // pub var checkFramebufferStatus: *const fn (target: Enum) callconv(.c) Enum = undefined;
         pub fn checkFramebufferStatus(target: FramebufferTarget) FramebufferStatus {
             const res = bindings.checkFramebufferStatus(@intFromEnum(target));
-            return std.meta.intToEnum(FramebufferStatus, res) catch onInvalid: {
+            return std.enums.fromInt(FramebufferStatus, res) orelse onInvalid: {
                 log.warn("checkFramebufferStatus returned unexpected value {}", .{res});
                 break :onInvalid .complete;
             };
